@@ -1,0 +1,7 @@
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - bioconda:vt=0.57721
+  - bioconda:bam-readcount=0.8
+  - bioconda:cyvcf2=0.20.9

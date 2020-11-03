@@ -1,0 +1,9 @@
+giab_id	lib	path
+HG002	PacBio_CCS_10kb	PacBio_CCS_10kb/HG002.PacBio.10kbCCS.Q20.hs37d5.pbmm2.MAPQ60.HP10xtrioRTG.bam
+HG002	PacBio_Sequel2_CCS_11kb	PacBio_Sequel2_CCS_11kb/HG002.SequelII.pbmm2.hs37d5.whatshap.haplotag.RTG.10x.trio.bam
+HG002	PacBio_CCS_15kb	PacBio_CCS_15kb/HG002.Sequel.15kb.pbmm2.hs37d5.whatshap.haplotag.RTG.10x.trio.bam
+HG002	PacBio_CCS_15kb_20kb_chemistry2	PacBio_CCS_15kb_20kb_chemistry2/GRCh37/HG002.SequelII.merged_15kb_20kb.GRCh37.duplomap.bam
+HG003	PacBio_CCS_Google	PacBio_CCS_Google/GRCh37/HG003/HG003.grch37.bam
+HG003	PacBio_CCS_15kb_20kb_chemistry2	PacBio_CCS_15kb_20kb_chemistry2/GRCh37/HG003.hs37d5.consensusalignments.bam
+HG004	PacBio_CCS_Google	PacBio_CCS_Google/GRCh37/HG004/HG004.grch37.bam
+HG004	PacBio_CCS_15kb_20kb_chemistry2	PacBio_CCS_15kb_20kb_chemistry2/GRCh37/HG004.hs37d5.consensusalignments.bam
