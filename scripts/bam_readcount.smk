@@ -62,12 +62,12 @@ rule all:
 
 rule get_GRCh37:
     input: FTP.remote(grch37_url)
-    output: "resources/GRCh37.fna"
+    output: "resources/hs37d5.fa"
     shell: "gunzip -c {input} > {output}"    
 
 rule index_ref:
-    input: "resources/GRCh37.fna"
-    output: "resources/GRCh37.fna.fai"
+    input: "resources/hs37d5.fa"
+    output: "resources/hs37d5.fa.fai"
     wrapper: "0.38.0/bio/samtools/faidx"
 
 ## Generate BED for candidate mosaic variants ---------------------------------
