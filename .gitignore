@@ -3,3 +3,9 @@
 .RData
 .Ruserdata
 *.DS_Store
+.snakemake
+data
+logs
+resources
+*xlsx
+*pdf
