@@ -17,13 +17,14 @@ def generate_region_list(hash):
     return fh.name
 
 def filter_sites_in_hash(region_list, bam_file, ref_fasta, sample, output_dir, insertion_centric):
-    bam_readcount_cmd = ['bam-readcount', '-f', ref_fasta, '-l', region_list, '-w', '0', '-b', '20']
+    bam_readcount_cmd = ['bam-readcount', '-f', ref_fasta, '-l', region_list, '-w', '-1', '-b', '0']
     if insertion_centric:
         bam_readcount_cmd.append('-i')
         output_file = os.path.join(output_dir, sample + '_bam_readcount_indel.tsv')
     else:
         output_file = os.path.join(output_dir, sample + '_bam_readcount_snv.tsv')
     bam_readcount_cmd.append(bam_file)
+    print(f"Calculating readcounts for {output_file}")
     execution = Popen(bam_readcount_cmd, stdout=PIPE, stderr=PIPE)
     stdout, stderr = execution.communicate()
     if execution.returncode == 0:
@@ -40,6 +41,8 @@ sample_index = vcf_file.samples.index(sample)
 
 rc_for_indel = {}
 rc_for_snp   = {}
+
+print("Generating Variant Lists")
 for variant in vcf_file:
     alleles = [variant.REF] + variant.ALT
     genotype = variant.genotypes[sample_index]
