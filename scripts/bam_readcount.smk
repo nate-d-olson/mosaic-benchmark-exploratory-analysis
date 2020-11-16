@@ -54,12 +54,13 @@ grch37_url = "ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/p
 ## Running pipeline
 rule all:
     input: 
-        expand("data/readcount/{giab_id}-{lib}.txt", zip, 
+        expand("data/readcount/{giab_id}-{lib}/HG002_bam_readcount_snv.tsv", zip, 
+            giab_id=bam["giab_id"], lib = bam["lib"]),
+        expand("data/readcount/{giab_id}-{lib}.vcf", zip, 
             giab_id=bam["giab_id"], lib = bam["lib"])
 
 
-# Get Reference
-
+# Get and index Reference
 rule get_GRCh37:
     input: FTP.remote(grch37_url)
     output: "resources/hs37d5.fa"
@@ -70,16 +71,11 @@ rule index_ref:
     output: "resources/hs37d5.fa.fai"
     wrapper: "0.38.0/bio/samtools/faidx"
 
-## Generate BED for candidate mosaic variants ---------------------------------
-rule make_mosaic_bed:
-    input: "data/panel_design/GRCh37_aj-trio_v4.2.1_candidate_mosaic.vcf"
-    output: "data/readcount/GRCh37_aj-trio_v4.2.1_candidate_mosaic.bed"
-    shell: """
-        cut -f1-5 {input} \
-            | sort -k1,1 -k2,2n \
-            | uniq \
-            > {output}
-    """
+
+## Calculate Read Support  ----------------------------------------------------
+##
+## Following methods outlined https://pvactools.readthedocs.io/en/latest/pvacseq/input_file_prep/readcounts.html
+##
 
 ## Decompose Candidate Mosaic Variants
 rule decompose_vcf:
@@ -90,7 +86,6 @@ rule decompose_vcf:
         vt decompose -s {input} -o {output}
     """
 
-## Calculate Read Support  ----------------------------------------------------
 def get_bam(wildcards):
     path=bam.loc[(wildcards.giab_id, wildcards.lib), "path"]
     return(f"{nas_bam_root}/{path}")
@@ -100,16 +95,48 @@ rule calc_readsupport:
         bam=get_bam,
         vcf="data/temp/decomposed_candidate_mosaic.vcf",
         ref="resources/hs37d5.fa"
-    output: "data/readcount/{giab_id}-{lib}.txt"
+    output: "data/readcount/{giab_id}-{lib}/HG002_bam_readcount_snv.tsv"
     conda: "../envs/bam-readcount.yaml"
     params: 
-        prefix="{giab_id}-{lib}",
-        outdir="data/readcount/"
+        sample="HG002",
+        outdir="data/readcount/{giab_id}-{lib}"
     shell: """
-        scripts/bam_readcount_helper.py \
+        python scripts/bam_readcount_helper.py \
             {input.vcf} \
-            {params.prefix} \
+            {params.sample} \
             {input.ref} \
             {input.bam} \
             {params.outdir}
+    """
+
+## Annotate VCF
+## TODO - add vatools to env for vcf-readcount-annotator
+rule annotate_vcf_snv:
+    input: 
+        vcf="data/temp/decomposed_candidate_mosaic.vcf",
+        readcount="data/readcount/{giab_id}-{lib}/HG002_bam_readcount_snv.tsv"
+    output: temp("data/readcount/{giab_id}-{lib}_snv.vcf")
+    conda: "../envs/bam-readcount.yaml"
+    shell: """
+        vcf-readcount-annotator \
+            -s HG002 -t snv \
+            -o {output} \
+            {input.vcf} \
+            {input.readcount} \
+            DNA
+    """
+
+rule annotate_readcount:
+    input: 
+        vcf="data/readcount/{giab_id}-{lib}_snv.vcf",
+        readcount="data/readcount/{giab_id}-{lib}/HG002_bam_readcount_indel.tsv"
+    output: "data/readcount/{giab_id}-{lib}.vcf"
+    conda: "../envs/bam-readcount.yaml"
+    shell: """
+        vcf-readcount-annotator \
+            -s HG002 -t indel \
+            -o {output} \
+            {input.vcf} \
+            {input.readcount} \
+            DNA
     """
