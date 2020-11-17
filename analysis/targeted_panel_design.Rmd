@@ -334,10 +334,11 @@ Somatic variant calls, both passing and filtered with AF values > 0.5.
 These are likely artifacts of the method use to detect candidate mosaic variants and not true mosaic variants.  
 Variants with AF 0 or 1 are homozygous variants with no read support for ALT or REF respectively, and thus are also artifacts of the mosaic variant detection method and will be excluded from the list of variants to validate.
 
-PICK-UP HERE - want plot with all variants and thoes being validated
-
+__Potential artifact types__
 het - lowEVS with AF < 0.5 likely primarily systematic errors, >0.5 AF likely real variants in parents and son
 ref - lowEVS with AF > 0.5 likely artifacts, can look at PASS to see
+
+__Variant filtering approach__
 Approach: excluding AF > 0.5 or non-ref or coverage < 100, subset of lowEVS-ref with AF < 0.25
 
 ```{r}
@@ -352,7 +353,7 @@ candidate_snvs_annotated <- non_hom_af_df %>%
     ))
 ```
 
-```{r}
+```{r fig.cap = "Scatter plot of potential mosaic variants, all called somatic variants in blue, red are variants meeting criteria for inclusion in panel design."}
 candidate_snvs_annotated %>%
     ggplot() +
     geom_point(aes(x = total, y = AF, fill = var_label),
@@ -369,6 +370,9 @@ candidate_snvs_annotated %>%
 
 
 ## Putative Variant List
+TQCC_NT is the read tier used to calculate the somatic empirical variant score.  
+Tier1 are reads passing quality filter and tier2 includes low quality reads. 
+
 ```{r}
 putative_var_df <- non_hom_af_df %>% 
     filter(NT == "ref",
@@ -380,13 +384,14 @@ putative_var_df %>%
     ungroup() %>% 
     count(FILTER, TQSS_NT)
 ```
+
 ```{r}
-    ggplot(putative_var_df ) +
+ggplot(putative_var_df) +
     geom_point(aes(x = total, y = AF),
                shape = 21) +
     scale_x_log10() +
-    facet_grid(FILTER ~ NT) + 
-    theme_bw() + 
+    facet_grid(FILTER ~ NT) +
+    theme_bw() +
     labs(x = "Coverage") +
     theme(legend.position = "bottom")
 ```
@@ -416,6 +421,7 @@ Ony including PASSing indels in the list of variants to validate
 ```{r}
 indels_df %>% filter(FILTER == "PASS")
 ```
+
 ```{r}
 indels_df %>% 
     filter(FILTER == "PASS") %>% 
@@ -451,17 +457,26 @@ putative_bed <- putative_var_df %>%
     mutate(START = POS - 50, END = POS + 50) %>% 
     select(-POS)
 
-write_tsv(putative_bed, file = here("putative_var.bed"), col_names = FALSE)
+write_tsv(putative_bed, 
+          file = here("data",
+                      "panel_design", 
+                      "putative_var.bed"), 
+          col_names = FALSE)
 ```
 
 Excluding putative variants from the merged variant list
 ```
-subtractBed -header -a merged-variants.vcf.gz -b putative_var.bed > merged-variants_no-putatitive.vcf
+subtractBed -header \
+    -a merged-variants.vcf.gz \
+    -b putative_var.bed \
+    > merged-variants_no-putatitive.vcf
 ```
 
 ### Candidate Control Variant List
 ```{r}
-merged_bench_vcf_df <- read_tsv(here("merged-variants_no-putatitive.vcf"),
+merged_bench_vcf_df <- read_tsv(here("data", 
+                                     "panel_design", 
+                                     "merged-variants_no-putatitive.vcf"),
                    comment = "##") %>% 
     rename(CHROM = `#CHROM`) %>% 
     filter(str_detect(HG002, "^\\./\\."), str_detect(HG003, "^0/1"))
