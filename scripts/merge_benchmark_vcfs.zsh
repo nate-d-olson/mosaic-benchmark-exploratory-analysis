@@ -29,7 +29,7 @@ bcftools merge -m all -O z \
     -R data/panel_design/GRCh37_aj-trio_v4.2.1_mosaic-target.bed \
     --threads 7 \
     hg00{2,3,4}.vcf.gz \
-    > merged-variants.vcf.gz
+    > data/panel_design/GRCh37_aj-trio_v4.2.1_merged-variants.vcf.gz
 
 tabix data/panel_design/GRCh37_aj-trio_v4.2.1_merged-variants.vcf.gz
 

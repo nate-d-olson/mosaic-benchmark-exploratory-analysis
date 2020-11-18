@@ -72,7 +72,7 @@ intersectBed -header \
     > ${candidate_mosaic_vars}
 
 echo "Number of putative mosaic variants"
-grep -v "^#" | ${candidate_mosaic_vars} | wc -l 
+grep -v "^#" ${candidate_mosaic_vars} | wc -l 
 
 echo "Number of candidate mosaic variants"
 grep "PASS" ${candidate_mosaic_vars} | wc -l
