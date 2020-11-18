@@ -10,6 +10,10 @@ output:
         code_folding: hide
 ---
 
+<!-- TODO Revisions from GIAB team call -->
+<!-- - Look into TQSS_NT 1 and 2 differences, pacbio read support? -->
+
+
 # Objective
 Identify variants for a targeted duplex sequencing panel that will be used to help validate candidate mosaic variants.
 
@@ -42,6 +46,10 @@ The resulting variant call set was filtered to exclude variants outside the unio
 A limitation to this approach is detection of mosaic variants where the parents are not homozygous reference. 
 Strelka2 somatic variants requires the normal sample be homozygous reference, using combined parents (https://sites.google.com/site/strelkasomaticvariantcaller/home/faq),
 cases where one parent is heterozygous and other other is homozygous could result in a false positive somatic variant call with a high allele fraction in the tumor sample. 
+
+__Strelka documentation pages__  
+
+- Illumina: https://support.illumina.com/help/BaseSpace_App_WGS_v5_OLH_15050955_02/Content/Source/Informatics/Apps/Strelka.htm  
 
 
 __Controls__  
@@ -84,16 +92,28 @@ wget https://s3.amazonaws.com/rtg-datasets/references/1000g_v37_phase2.sdf.zip
 
 vcfeval ran on Nate's 13 inch macbook pro laptop
 ```
-BENCHPATH=resources/hg002_benchmark
+BENCHPATH=resources/giab_benchmark_v4.2.1/GRCh37/
 rtg vcfeval \
-    -b ${BENCHPATH}/HG002_GRCh37_1_22_v4.1_draft_benchmark.vcf.gz \
+    -b ${BENCHPATH}HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz \
     -c data/strelka2_wgs_parents-vs-child/HG002_hs37d5_300X_wg.vcf.gz \
-    --bed-regions ${BENCHPATH}/HG002_GRCh37_1_22_v4.1_draft_benchmark.bed.gz \
+    --evaluation-regions ${BENCHPATH}/HG002_GRCh37_1_22_v4.2.1_benchmark_noinconsistent.bed \
     -o data/strelka2_wgs_parents-vs-child/vcfeval_comparison \
     -t resources/1000g_v37_phase2.sdf  \
+    --decompose \
     --all-records \
-    --ref-overlap 
+    --ref-overlap \
+    --threads=7
 ```
+
+Warnings from `vcfeval` log. Should we exclude these regions from the mosaic variant benchmark?
+
+```
+Evaluation too complex (50001 unresolved paths, 82820 iterations) at reference region 6:31310688-31310951. Variants in this region will not be included in results.
+Evaluation too complex (50002 unresolved paths, 3022919 iterations) at reference region 6:31395632-31395887. Variants in this region will not be included in results.
+Evaluation too complex (50002 unresolved paths, 49816 iterations) at reference region 6:32593702-32594013. Variants in this region will not be included in results.
+Evaluation too complex (50001 unresolved paths, 49888 iterations) at reference region 6:32632440-32632599. Variants in this region will not be included in results.
+```
+
 
 ## Mosaic Panel Generation
 Limiting variants to those within the intersection of the AJ-trio benchmark region, excluding complex variants. 
@@ -180,11 +200,13 @@ snvs_af_df <- snvs_df %>%
             
         )
     ) %>%
-    separate(refCounts, into = c("tier1RefCounts", "tier2RefCounts")) %>%
-    separate(altCounts, into = c("tier1AltCounts", "tier2AltCounts")) %>%
+    separate(refCounts, into = c("tier1RefCounts", "tier2RefCounts"),
+             convert = TRUE) %>%
+    separate(altCounts, into = c("tier1AltCounts", "tier2AltCounts"), 
+             convert = TRUE) %>%
     mutate(AltCounts = if_else(TQSS_NT == 1, tier1AltCounts, tier2AltCounts),
            RefCounts = if_else(TQSS_NT == 1, tier1RefCounts, tier2RefCounts),
-           AF = as.numeric(AltCounts) / (as.numeric(AltCounts) + as.numeric(RefCounts)))
+           AF = AltCounts / (AltCounts + RefCounts))
 ```
 
 #### Calculating REF, ALT, and noise frac for tier1, tier2, and combined
@@ -301,6 +323,17 @@ indels_df <- putative_vcf_df %>%
     left_join(var_type)
 ```
 <!-- TODO - add test to make sure INFO field is appropraitely parsed -->
+Calculating AF
+```{r}
+indels_af_df <- indels_df %>%
+    separate(TAR, into = c("tier1RefCounts", "tier2RefCounts"), convert = TRUE) %>%
+    separate(TIR, into = c("tier1AltCounts", "tier2AltCounts"), convert = TRUE) %>%
+    mutate(AltCounts = if_else(TQSI_NT == 1, tier1AltCounts, tier2AltCounts),
+           RefCounts = if_else(TQSI_NT == 1, tier1RefCounts, tier2RefCounts),
+           AF = AltCounts / (AltCounts + RefCounts),
+           total =  tier1AltCounts + tier2AltCounts + 
+               tier1RefCounts + tier2RefCounts)
+```
 
 
 # Exploratory Data Analysis
@@ -410,24 +443,93 @@ bind_rows(pass_candidate_vars, non_pass_candidate_vars) %>%
     ungroup() %>% 
     select(CHROM, POS, FILTER, SomaticEVS, AF) %>% 
     arrange(CHROM, POS) %>% 
-    write_tsv(here("data","putative_mosaic_variants.txt"))
+    write_tsv(here("data","panel_design", 
+                   "putative_mosaic_snvs.txt"))
 ```
 
 
 ## INDELS
 larger indels homozygous in the son and het in one of the parents
 
-Ony including PASSing indels in the list of variants to validate
 ```{r}
-indels_df %>% filter(FILTER == "PASS")
+indels_af_df %>% ggplot() + 
+    geom_density(aes(x = AF, fill = FILTER), alpha = 0.25) + 
+    theme_bw() +
+    theme(legend.position = "bottom")
+```
+Excluding AF of 1 or 0.
+```{r}
+indels_anno_df <- indels_af_df %>%
+    filter(AF != 1, AF != 0) %>% 
+    mutate(var_label = if_else(
+        (NT == "ref" &
+            total > 100) &
+            ((FILTER == "PASS" & AF < 0.5) |
+            (FILTER != "PASS" & AF < 0.25)),
+        "Candidate",
+        "Excluded"
+    ))
+```
+
+Number of indels by FILTER, Tier, and whether they meet requirements for inclusion in the variant list.
+```{r}
+indels_anno_df %>% 
+    count(FILTER, TQSI_NT, var_label)
+```
+
+
+Indels AF distribution
+```{r}
+ggplot(indels_anno_df) +
+    geom_point(aes(x = total, y = AF, fill = var_label),
+               shape = 21) +
+    scale_x_log10() +
+    facet_grid(FILTER ~ NT) + 
+    theme_bw() + 
+    labs(x = "Coverage") +
+    theme(legend.position = "bottom")
+```
+
+
+
+```{r}
+## Candidate indels including all passing variants
+
+pass_candidate_indels <- indels_anno_df %>% 
+    filter(FILTER == "PASS", var_label == "Candidate")
+
+n_non_passing <- 50 - nrow(pass_candidate_indels) - 1
+
+non_pass_candidate_indels <- indels_anno_df%>%
+    ungroup() %>%
+    filter(FILTER != "PASS",
+           var_label == "Candidate",
+           TQSI_NT == 1) %>%
+    top_n(n = n_non_passing, wt = SomaticEVS)
+
+bind_rows(pass_candidate_indels, non_pass_candidate_indels) %>%
+    ungroup() %>%
+    select(CHROM, POS, FILTER, SomaticEVS, AF) %>%
+    arrange(CHROM, POS) %>%
+    write_tsv(here("data","panel_design",
+                   "putative_mosaic_indels.txt"))
 ```
 
 ```{r}
-indels_df %>% 
-    filter(FILTER == "PASS") %>% 
-    select(CHROM, POS, FILTER, SomaticEVS) %>% 
+bind_rows(pass_candidate_indels, 
+          non_pass_candidate_indels) %>% 
+    rowwise() %>% 
+    mutate(del_seq = if_else(TYPE == "DEL", REF, ""),
+           ins_seq = if_else(TYPE == "INS", ALT, ""),
+           del_len = if_else(TYPE == "DEL", -1*as.numeric(VAR_LEN), 0),
+           ins_len = if_else(TYPE == "INS", as.numeric(VAR_LEN), 0)
+           ) %>% 
+    mutate(Stop = if_else(TYPE == "INS", POS + VAR_LEN, POS)) %>% 
+    add_column(vcv = "") %>% 
+    select(CHROM, POS, Stop, vcv, del_seq, del_len, ins_seq, ins_len) %>% 
     arrange(CHROM, POS) %>% 
-    write_tsv(here("data","candidate_mosaic_indels.txt"))
+    write_tsv(here("data","panel_design", 
+                   "putative_mosaic_indels_twist_formated.txt"))
 ```
 
 # Control Variant List
@@ -449,13 +551,30 @@ merge_benchmark_vcfs.zsh
 ```
 
 ### Excluding Candidate Variants
-BED file with candidate variants and slop
+BED file with candidate variants and slop  
+Only excluding SNPs
 ```{r}
-putative_bed <- putative_var_df %>% 
+indels_anno_df 
+```
+
+```{r}
+putative_indel_bed <- indels_anno_df %>% 
+    filter(var_label == "Candidate") %>% 
+    mutate(POS_end = if_else(VAR_LEN > 0,
+                             POS + VAR_LEN,
+                             POS)) %>%
+    mutate(START = POS - 50, END = POS_end + 50) %>% 
+    select(CHROM, START, END)
+               
+
+putative_snv_bed <- putative_var_df %>% 
     ungroup() %>% 
     select(CHROM, POS) %>% 
     mutate(START = POS - 50, END = POS + 50) %>% 
     select(-POS)
+
+putative_bed <- bind_rows(putative_snv_bed,
+                          putative_indel_bed)
 
 write_tsv(putative_bed, 
           file = here("data",
@@ -467,16 +586,35 @@ write_tsv(putative_bed,
 Excluding putative variants from the merged variant list
 ```
 subtractBed -header \
-    -a merged-variants.vcf.gz \
-    -b putative_var.bed \
-    > merged-variants_no-putatitive.vcf
+    -a data/panel_design/GRCh37_aj-trio_v4.2.1_merged-variants.vcf.gz \
+    -b data/panel_design/putative_var.bed \
+    > data/panel_design/merged-variants_no-putatitive.vcf
 ```
+
+### Excluding HG002 variants
+
+Convert benchmark vcf to bed with 50bp slop
+```
+hg2_bench_vcf=resources/giab_benchmark_v4.2.1/GRCh37/HG002_GRCh37_1_22_v4.2.1_benchmark.vcf.gz
+bcftools query -f'%CHROM\t%POS0\t%END\t%ID\n' ${hg2_bench_vcf} \
+    | bedtools slop -i stdin -g resources/hs37d5.fa.fai -b 50 \
+    > data/panel_design/GRCh37_HG002_v4.2.1_vars_slop50.bed
+```
+
+```
+subtractBed -header \
+    -a data/panel_design/GRCh37_aj-trio_v4.2.1_merged-variants.vcf.gz \
+    -b ${hg2_bench_vcf} \
+    > data/panel_design/merged-variants_no-putatitive-no-hg002.vcf
+```
+subtracting HG002 vars
+
 
 ### Candidate Control Variant List
 ```{r}
 merged_bench_vcf_df <- read_tsv(here("data", 
                                      "panel_design", 
-                                     "merged-variants_no-putatitive.vcf"),
+                                     "merged-variants_no-putatitive-no-hg002.vcf"),
                    comment = "##") %>% 
     rename(CHROM = `#CHROM`) %>% 
     filter(str_detect(HG002, "^\\./\\."), str_detect(HG003, "^0/1"))
@@ -527,21 +665,39 @@ Control variant distance from putative mosaic variant ranged from 50 bp to 1.5 k
 ```{r}
 control_var_df %>% 
     ungroup() %>% 
-    top_n(500, wt = -var_dist) %>% 
+    # top_n(250, wt = -var_dist) %>% 
     ggplot() + geom_histogram(aes(x = var_dist)) + 
     scale_x_log10() + 
     theme_bw()
 ```
-
-List of candidate variants with chromosome, position, variant id, as well as distance from nearest candidate mosaic variant.
 ```{r}
 control_var_df %>% 
-    top_n(500, wt = -var_dist) %>% 
-    arrange(CHROM, POS, ID, var_dist) %>% 
-    write_tsv(here("data","control_variants.txt"))
+    ungroup() %>% 
+    top_n(250, wt = -var_dist) %>% 
+    ggplot() + geom_histogram(aes(x = var_dist)) + 
+    scale_x_log10() + 
+    theme_bw()
+```
+```{r}
+dist_control_vars <- control_var_df %>% 
+    ungroup() %>% 
+    top_n(250, wt = -var_dist)
+
+# random_control_vars <- putative_control %>% 
+#     ## Excluding variant distance based control vars
+#     anti_join(dist_control_vars) %>% 
+#     sample_n(size = 250) %>% 
+#     mutate(var_dist = -1)
 ```
 
-`
+List of candidate variants with chromosome, position, variant id, as well as distance from nearest candidate mosaic variant.
+Forgot to set seed will use the file on disk
+```{r}
+ # bind_rows(dist_control_vars, random_control_vars) %>% 
+ #    select(CHROM, POS, ID, var_dist) %>%
+ #    arrange(CHROM, POS) %>%
+ #    write_tsv(here("data","panel_design", "control_variants.txt"))
+```
 
 # Session Information
 ## System Information
