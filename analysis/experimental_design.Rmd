@@ -145,6 +145,19 @@ detect_prob_tbl %>%
     filter(dup_cov %in% c(199, 427))
 ```
 
+# Experimental Design
+Twin - reagents for 24 samples
+
+Samples:
+- Unmixed: HG002, HG003, HG004
+- Mixed HG002/HG003: AF 0.25, 0.1, 0.05, 0.01
+
+Triplicates for each
+
+Estimated Dup Coverage:
+S2 - 199 per replicate, ~600X total
+S4 - 427 per replicate, ~1275X total
+
 # Summary
 AF detection limits based on the above estimates indicate that we can detect mosaic variants with AF ~0.015 with S2 flowcell and 0.007 using a S4 flowcell. 
 The coverage calculations are pretty far off between the cluster based and base coveraer estimates.
