@@ -18,12 +18,20 @@ https://gitlab.nist.gov/gitlab/nolson/giab-analysis-template,
  commit 2e60b1dd8a5b2fa670577e1c5c31d08dbc18c3aa. 
 
 
-# Questions
-- JZ? - Do we want to include the loFreq results in the in silico AF analysis?  
-- JW? - Whole genome comparison - what is the relevant set of commands
-- JZ? - Inclusion of NAID variants call comparisons
-- JZ? - Inclusion of hap.py whole genome benchmarking results
+## Analysis Components
 
+### Limit of Detection Analysis
 
+### Candidate Mosaic Variant List Generation
+strelka2 run
+candidate list generation
+
+### Mosaic Variant List Evaluation
+
+#### In Silico
+Snakemake pipeline to calculating PacBio and Illumina read support, `bam_readcount.smk`.
+
+#### Duplex Sequencing
+Panel design, `analysis/targeted_panel_design.Rmd`.
 
 

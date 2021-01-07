@@ -516,7 +516,7 @@ bind_rows(pass_candidate_indels, non_pass_candidate_indels) %>%
 ```
 
 ```{r}
-bind_rows(pass_candidate_indels, 
+indels_twist_formatted <- bind_rows(pass_candidate_indels, 
           non_pass_candidate_indels) %>% 
     rowwise() %>% 
     mutate(del_seq = if_else(TYPE == "DEL", REF, ""),
@@ -524,13 +524,38 @@ bind_rows(pass_candidate_indels,
            del_len = if_else(TYPE == "DEL", -1*as.numeric(VAR_LEN), 0),
            ins_len = if_else(TYPE == "INS", as.numeric(VAR_LEN), 0)
            ) %>% 
-    mutate(Stop = if_else(TYPE == "INS", POS + VAR_LEN, POS)) %>% 
+    mutate(Stop = if_else(TYPE == "DEL", POS + VAR_LEN, POS)) %>% 
     add_column(vcv = "") %>% 
     select(CHROM, POS, Stop, vcv, del_seq, del_len, ins_seq, ins_len) %>% 
-    arrange(CHROM, POS) %>% 
+    arrange(CHROM, POS)
+
+indels_twist_formatted %>% 
     write_tsv(here("data","panel_design", 
                    "putative_mosaic_indels_twist_formated.txt"))
 ```
+```{r}
+
+```
+
+
+Generating InDel liftOver table
+```{r}
+liftOver_failure_indels <- read_tsv(
+    "~/Downloads/LiftOver_Failure_CAP-1_NIST_CellLine_Mutagenesis_reformatted.bed",
+    col_names = c("CHROM","POS","STOP")) 
+
+liftOver_coords <- read_tsv(
+    "~/Downloads/mosaic-dels_reformatted_liftOver.bed",
+    col_names = c("grch38_CHROM","grch38_START","grch38_STOP"))
+
+liftOver_failure_indels %>% 
+    bind_cols(liftOver_coords) %>% 
+    mutate(CHROM = as.double(str_remove(CHROM, "chr"))) %>% 
+    left_join(indels_twist_formatted) %>% 
+    select(CHROM, POS, STOP, grch38_CHROM, grch38_START, grch38_STOP, del_seq, del_len) %>% 
+    write_tsv(here("data","panel_design","liftover_dels_tbl.tsv"))
+```
+
 
 # Control Variant List
 
