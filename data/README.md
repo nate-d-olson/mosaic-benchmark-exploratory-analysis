@@ -16,4 +16,5 @@ Happy was run on precisionFDA.
 - Strelka2 variant calling and benchmarking results in `strelka2_wgs_parents-vs-child`
 
 ## Panel Design
-See `analysis/targeted_panel_design.Rmd` for file descriptions and code used to generate the files.
+- See `analysis/targeted_panel_design.Rmd` for file descriptions and code used to generate the files.  
+- twinstrand_panel.bed - panel design bed file for individual variants see `docs/panel_design` for design documentation provided by TwinStrand.  

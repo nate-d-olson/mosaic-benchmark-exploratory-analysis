@@ -96,7 +96,7 @@ read_csv(here("data", "panel_design", "CoverageNeeded_20210106082807_02699900.cs
 ## Read length based coverage calculation
 
 ```{r}
-region_size <- 5000000 #5MB
+region_size <- 253731 #253kb
 duplicates <- 0.1
 on_target <- 0.65
 
@@ -118,11 +118,24 @@ tibble(dup_cov = c(50, 100, 150, 200, 250, 300, 400, 500),
     spread(flowcell, num_samples)
 ```
 
+Duplex Cov per sample assuming 25 samples
+```{r}
+tibble(num_samples = c(1, 7, 8,21, 24, 25),
+       ill_flowcell = list(flowcell_output)) %>% 
+    unnest() %>% 
+    mutate(dup_cov = ((output_per_unit/ num_samples) * ((1-duplicates) * on_target))/(region_size * 100) ) %>% 
+    arrange(-num_samples) %>% 
+    select(dup_cov, flowcell, num_samples) %>% 
+    mutate(dup_cov = floor(dup_cov)) %>% 
+    spread(flowcell, dup_cov)
+```
+
+
 ## Read count based estimate
 
 ```{r}
 ## Accounting for duplication and on target rates
-panel_size <- 5000
+panel_size <- 2816
 
 tibble(
     flowcell = c("SP", "S1", "S2", "S4"),
