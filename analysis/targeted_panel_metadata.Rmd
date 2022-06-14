@@ -1,0 +1,294 @@
+---
+title: "Generating A Metadata Table for The Duplex Seq Custom Panel"
+date: '`r Sys.Date()`'
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        df_print: paged
+        code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(readxl)
+library(here)
+```
+
+# Objective
+Creating a metadata table for the duplex seq custom panel.
+
+
+Metadata table columns
+X GRCh37 chrom and pos
+- GRCh38 chrom and pos
+X rsid
+- Twinstrand var id SNP## and InDel##
+X var_dist
+X var_type
+X var_cat
+X FILTER
+X SomaticEVS
+X AF (Ill)
+- Read support CCS
+- Read support BGiSeq
+
+## Approach
+
+### GRCh37 VAR IDs and POS
+```{r}
+snp_GRCh37_panel_tbl <- read_excel(path = here("docs","panel_design", "nist_giab_hg002_mosaic_custom_panel.xlsx"),
+        col_types = "text",
+           sheet = "SNPs", .name_repair = "universal") %>% 
+    select(-RSID..optional.) %>% 
+    mutate(Chr = as.numeric(Chr),
+           Start = as.numeric(Start),
+           RSID = Stop, 
+           var_id = paste0("SNP", 1:n()),
+           Stop = Start + 1) %>% 
+        rename(CHROM_GRCh37 = Chr,
+           POS_GRCh37 = Start,
+           STOP_GRCh37 = Stop)
+    
+glimpse(snp_GRCh37_panel_tbl)
+```
+
+
+```{r}
+indel_GRCh37_panel_tbl <-
+    read_excel(
+        path = here(
+            "docs",
+            "panel_design",
+            "nist_giab_hg002_mosaic_custom_panel.xlsx"
+        ),
+        range = "A2:C51",
+        sheet = "InDel",
+        .name_repair = "universal"
+    ) %>%
+    mutate(
+        Start = as.numeric(Start),
+        Stop = as.numeric(Stop),
+        var_id = paste0("InDel", 1:n()),
+    ) %>% 
+    rename(CHROM_GRCh37 = Chrom,
+           POS_GRCh37 = Start,
+           STOP_GRCh37 = Stop)
+    
+glimpse(indel_GRCh37_panel_tbl)
+```
+
+Start with googlesheet,
+```
+CHROM_GRCh37	POS_GRCh37	ID	var_dist	var_type	var_cat	filter	SomaticEVS	AF
+```
+```{r}
+probe_metadata <- googlesheets4::read_sheet(ss = "1g7QMhJVSqyBvtLnlfd4-uxAs1805aIMrZ1zgZdREU_Q",
+                          sheet = "probe_metadata")
+glimpse(probe_metadata)
+```
+
+```{r}
+GRCh37_panel_tbl <- bind_rows(snp_GRCh37_panel_tbl, 
+                              indel_GRCh37_panel_tbl) %>% 
+    left_join(probe_metadata)
+
+glimpse(GRCh37_panel_tbl)
+```
+
+
+
+## Getting GRCh38 coords
+Get GRCh38 coords from liftover files
+```{r}
+GRCh38_panel_tbl <-
+    read_tsv(
+        here("data", "panel_design", "twinstrand_panel.bed"),
+        col_names = c("CHROM_GRCh38", "START_GRCh38", "STOP_GRCh38",
+                      "var_id")
+    ) 
+```
+
+```{r}
+dup_panel_metadata <- full_join(GRCh37_panel_tbl, GRCh38_panel_tbl)
+```
+```{r}
+glimpse(dup_panel_metadata)
+```
+
+# Metadata Table Validation
+Exporting GRCh37 and GRCh38 coords for liftOver
+```{r}
+dup_panel_metadata %>% 
+    select(CHROM_GRCh38, START_GRCh38, STOP_GRCh38, var_id) %>% 
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    write_tsv(here("data","panel_design","grch38_coords.tsv"), col_names = FALSE)
+
+dup_panel_metadata %>% 
+    select(CHROM_GRCh37, POS_GRCh37, STOP_GRCh37, var_id) %>% 
+    mutate(CHROM_GRCh37 = paste0("chr", CHROM_GRCh37)) %>% 
+    write_tsv(here("data","panel_design","grch37_coords.tsv"), col_names = FALSE)
+```
+
+Liftover coordinates generated for `grch37_coords.tsv` and `grch38_coords.tsv`, using https://genome.ucsc.edu/cgi-bin/hgLiftOver.
+
+Creating a combined liftover table 
+```{r}
+lftover_38 <- read_tsv(
+    here(
+        "data",
+        "panel_design",
+        "liftover_grch37_to_grch38_coords.bed"
+    ),
+    col_names = c(
+        "lftovr_GRCh38_CHROM",
+        "lftovr_GRCh38_START",
+        "lftovr_GRCh38_STOP",
+        "var_id"
+    )
+) %>% 
+    select(-X5)
+
+lftover_37 <- read_tsv(
+    here(
+        "data",
+        "panel_design",
+        "liftover_grch38_to_grch37_coords.bed"
+    ),
+    col_names = c(
+        "lftovr_GRCh37_CHROM",
+        "lftovr_GRCh37_START",
+        "lftovr_GRCh37_STOP",
+        "var_id"
+    )) %>% 
+    mutate(lftovr_GRCh37_CHROM = str_remove(lftovr_GRCh37_CHROM, "chr")) %>% 
+    select(-X5)
+
+combined_lftovr_df <- full_join(lftover_37, lftover_38) 
+```
+
+
+## Validating Coordinates
+```{r}
+validation_tbl <- full_join(dup_panel_metadata, combined_lftovr_df)
+glimpse(validation_tbl)
+```
+
+__Comparing GRCh37 liftedover coords to panel design coords__
+All InDels
+
+```{r}
+grch37_chrom_no_match <-validation_tbl %>% 
+    ## Excluding positions not included in the panel
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    filter(CHROM_GRCh37 != as.double(lftovr_GRCh37_CHROM))  %>% 
+    .$var_id
+
+grch37_start_no_match <- validation_tbl %>% 
+    ## Excluding positions not included in the panel
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    filter(POS_GRCh37-1 != lftovr_GRCh37_START)  %>% 
+    .$var_id
+
+grch37_stop_no_match <- validation_tbl %>% 
+    ## Excluding positions not included in the panel
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    filter(STOP_GRCh37 != lftovr_GRCh37_STOP) %>% 
+    .$var_id
+
+## Checking for overlap between sets
+comp_tbl <- list(chrom = grch37_chrom_no_match, 
+     pos = grch37_start_no_match,
+     end = grch37_stop_no_match) %>% 
+    map(as_tibble) %>% 
+    bind_rows(.id = "comp_type") %>% 
+    mutate(no_match = 1) %>% 
+    pivot_wider(names_from = comp_type, values_from = no_match) %>% 
+    rename(var_id = value) %>% 
+    left_join(validation_tbl)
+
+grch37_lftover_error <- comp_tbl$var_id %>% unique()
+DT::datatable(comp_tbl)
+``` 
+
+
+### Verifying GRCh38 Coords
+```{r}
+grch38_chrom_no_match <-validation_tbl %>% 
+    ## Excluding positions not included in the panel
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    filter(CHROM_GRCh38 != lftovr_GRCh38_CHROM)  %>% 
+    .$var_id
+
+grch38_start_no_match <- validation_tbl %>% 
+    ## Excluding positions not included in the panel
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    filter(START_GRCh38 != lftovr_GRCh38_START-1)  %>% 
+    .$var_id
+
+grch38_stop_no_match <- validation_tbl %>% 
+    ## Excluding positions not included in the panel
+    filter(!is.na(CHROM_GRCh38)) %>% 
+    filter(STOP_GRCh38 != lftovr_GRCh38_STOP) %>% 
+    .$var_id
+
+## Checking for overlap between sets
+comp_tbl <-list(chrom = grch38_chrom_no_match, 
+     pos = grch38_start_no_match,
+     end = grch38_stop_no_match) %>% 
+    map(as_tibble) %>% 
+    bind_rows(.id = "comp_type") %>% 
+    mutate(no_match = 1) %>% 
+    pivot_wider(names_from = comp_type, values_from = no_match) %>% 
+    rename(var_id = value) %>% 
+    left_join(validation_tbl) %>% 
+    select(-RSID, -rsid, -var_dist, -var_type, -var_cat, -filter, -SomaticEVS, -AF)
+
+grch38_lftover_error <- comp_tbl$var_id %>% unique()
+DT::datatable(comp_tbl)
+```
+
+
+### Annotating Liftover errors
+```{r}
+dup_panel_metadata_wlftovrerr <- dup_panel_metadata %>% 
+    mutate(grch38_lftovr_err = if_else(var_id %in% grch38_lftover_error,TRUE,FALSE),
+           grch37_lftovr_err = if_else(var_id %in% grch37_lftover_error,TRUE,FALSE)
+           )
+dup_panel_metadata_wlftovrerr
+```
+
+
+## Reformatting Saving Metadata Table
+```{r}
+dup_panel_metadata_wlftovrerr %>% 
+    rename(START_GRCh37 = POS_GRCh37,
+           ) %>% 
+    select(CHROM_GRCh37, START_GRCh37, STOP_GRCh37,
+           CHROM_GRCh38, START_GRCh38, STOP_GRCh38,
+           rsid, var_id,
+           var_type, var_cat,
+           filter, SomaticEVS, AF,
+           grch38_lftovr_err,
+           grch37_lftovr_err) %>% 
+    write_tsv(here("data","mosaic-dupseq_probe-metadata.tsv"))
+```
+
+
+
+
+# Session Information
+## System Information
+```{r}
+sessioninfo::platform_info()
+```
+
+
+## Package Versions
+```{r}
+sessioninfo::package_info() %>% 
+    filter(attached = TRUE) %>% 
+    select(package, loadedversion, date, source) %>%
+    knitr::kable(booktabs = TRUE, row.names = FALSE)
+```

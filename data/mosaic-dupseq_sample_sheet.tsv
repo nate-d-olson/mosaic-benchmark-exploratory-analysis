@@ -1,0 +1,12 @@
+sample_id	project	sample_type	exp_AF	n_reps
+HG2_HG3_MIX1	GIAB	mixture	0.12	1
+HG2_HG3_MIX2	GIAB	mixture	0.06	1
+HG2_HG3_MIX3	GIAB	mixture	0.012	3
+HG2_HG3_MIX4	GIAB	mixture	0.0012	3
+GIAB_HG2	GIAB	unmixed		3
+GIAB_HG3	GIAB	unmixed		3
+GIAB_HG4	GIAB	unmixed		1
+NIST_B_GEC_HG3	GEC	unmixed		1
+NIST_C_GEC_MIX1	GEC	mixture	0.075	1
+NIST_D_GEC_MIX2	GEC	mixture	0.0125	1
+NIST_E_GEC_MIX3	GEC	mixture	0.00175	1
