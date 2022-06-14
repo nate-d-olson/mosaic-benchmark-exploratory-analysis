@@ -9,11 +9,12 @@
 Benchmarking results for LOD analysis, hap.py output summary.csv files for allele fractions; 0, 0.01, 0.05, 0.1, 0.25, and 0.5. 
 Happy was run on precisionFDA. 
 
-__TODO__ Add links to precisionFDA benchmarking results.
+[TODO - Add links to precisionFDA benchmarking results.]
 
 ## candidate mosaic variants
 - 300X Ill whole genome sequencing data: HG002 tumor, HG003 + HG004 normal  
 - Strelka2 variant calling and benchmarking results in `strelka2_wgs_parents-vs-child`
+
 
 ## Duplex Sequencing 
 Intermediate files in `panel_design` subdirectory.
@@ -43,3 +44,7 @@ Intermediate files in `panel_design` subdirectory.
     	- `AF`: allele frequency from strelka2
     	- `grch38_lftovr_err`: variants where lift reciprocal liftover did not match GRCh38 coords.
     	- `grch37_lftovr_err`: variants where lift reciprocal liftover did not match GRCh37 coords.
+
+## Panel Design
+- See `analysis/targeted_panel_design.Rmd` for file descriptions and code used to generate the files.  
+- twinstrand_panel.bed - panel design bed file for individual variants see `docs/panel_design` for design documentation provided by TwinStrand.  
