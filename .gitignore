@@ -3,13 +3,10 @@
 .RData
 .Ruserdata
 *.DS_Store
-<<<<<<< HEAD
-.snakemake
-=======
 .snakemake
 data
 logs
 resources
 *xlsx
 *pdf
->>>>>>> 741967b30ea0a1c3a30660129b9cbde5c25d8bcb
+
