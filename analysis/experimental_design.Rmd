@@ -1,0 +1,180 @@
+---
+title: "Seq Experimental Design"
+author: "Nate Olson"
+date: "1/6/2021"
+output: html_document
+---
+
+```{r}
+library(tidyverse)
+library(here)
+```
+
+# Objective
+Work out experimental design for duplex seq mosaic variant validation
+
+# Approach
+
+1. Use binomial probability to get consensus duplex seq coverage requirements. 
+2. Get flow cell/ sample coverage using Illumina coverage calculator
+3. Work out experimental design based on flow cell/ sample info
+
+## Assumptions
+
+### Coverage calculator
+- duplication rate: 10% (based on email from Renata)
+- on-target: 65% (based on email from Renata)
+- coverage: 100X sample size value (based on conversation with TwinStrand)
+- region_size: 5Mb [100bp * 5000 probes (2 per variant) ]
+
+# Analysis
+
+Number of consensus duplex seq coverage
+```{r}
+sample_size <- seq(from = 10, to = 5000, by = 1)
+probs <- seq(from = 0.00, to = 0.1, by = 0.001)
+
+detect_prob_tbl <- tibble(dup_cov = rep(sample_size, length(probs)),
+                          af = rep(probs, each = length(sample_size))) %>% 
+    mutate(prob_detect = 1 - pbinom(q = 0, dup_cov, af))
+```
+
+
+```{r}
+thresh_vals <- detect_prob_tbl %>% 
+    filter(af %in% c(0.001, 0.01, 0.05, 0.1)) %>% 
+    filter(prob_detect > 0.95) %>% 
+    group_by(af) %>% 
+    top_n(n = 1, wt = -dup_cov)
+
+detect_prob_tbl %>% 
+     filter(af %in% c(0.001, 0.01, 0.05, 0.1)) %>% 
+    ggplot() + 
+    geom_line(aes(x = dup_cov, y = prob_detect, group = factor(af)), size = 1, color = "grey40") + 
+    geom_line(aes(x = dup_cov, y = prob_detect, color = factor(af))) + 
+    geom_point(data = thresh_vals, 
+               aes(x = dup_cov, y = prob_detect, fill = factor(af)), 
+               shape = 21) + 
+    geom_linerange(data = thresh_vals, 
+                   aes(x = dup_cov, ymin = 0, ymax = prob_detect), 
+                   color = "grey60", linetype = 2) +
+    scale_x_log10() + 
+    theme_bw() + 
+    labs(x = "Duplex Consensus Seq Coverage", y = "Probability of Detecting Variant", fill = "AF")
+```
+```{r}
+detect_prob_tbl %>% 
+    filter(prob_detect > 0.95) %>% 
+    group_by(af) %>% 
+    top_n(n = 1, wt = -dup_cov)
+```
+For AF of 0.01 looking at 300X duplex seq cov
+For AF of 0.05 60X cov
+
+For raw seq coverage multiply by 100 (I think, need to verify assumption), so between 6 and 30k X coverage.
+
+## Illumina Coverage calculator
+From Illumina coverage calculator webapp
+
+
+    Calculation of Results Using Coverage Needed
+    Total output required = region size * coverage / ((1-duplicates/100) * on target/100)
+    
+    Output per unit = clusters per unit * read length
+    
+    Number of units (flow cells or lanes) = total output required / output per unit
+    
+    Number of samples = output per unit / total output required
+
+
+Flowcell sizes from illumina
+```{r}
+read_csv(here("data", "panel_design", "CoverageNeeded_20210106082807_02699900.csv"), 
+              skip = 6, n_max = 6) 
+```
+
+## Read length based coverage calculation
+
+```{r}
+region_size <- 253731 #253kb
+duplicates <- 0.1
+on_target <- 0.65
+
+## Illumina NovaSeq run sizes
+flowcell_output <- tibble(flowcell = c("SP", "S1", "S2", "S4"),
+                              output_per_unit = c(160000000000, 
+                                                  320000000000,
+                                                  820000000000,
+                                                  2000000000000))
+
+## Cov Calc
+tibble(dup_cov = c(50, 100, 150, 200, 250, 300, 400, 500),
+       ill_flowcell = list(flowcell_output)) %>% 
+    mutate(required_output = region_size * dup_cov * 100 / ((1-duplicates) * on_target)) %>% 
+    unnest() %>% 
+    mutate(num_samples = floor(output_per_unit/ required_output)) %>% 
+    arrange(-num_samples) %>% 
+    select(dup_cov, flowcell, num_samples) %>% 
+    spread(flowcell, num_samples)
+```
+
+Duplex Cov per sample assuming 25 samples
+```{r}
+tibble(num_samples = c(1, 7, 8,21, 24, 25),
+       ill_flowcell = list(flowcell_output)) %>% 
+    unnest() %>% 
+    mutate(dup_cov = ((output_per_unit/ num_samples) * ((1-duplicates) * on_target))/(region_size * 100) ) %>% 
+    arrange(-num_samples) %>% 
+    select(dup_cov, flowcell, num_samples) %>% 
+    mutate(dup_cov = floor(dup_cov)) %>% 
+    spread(flowcell, dup_cov)
+```
+
+
+## Read count based estimate
+
+```{r}
+## Accounting for duplication and on target rates
+panel_size <- 2816
+
+tibble(
+    flowcell = c("SP", "S1", "S2", "S4"),
+    cluster_per_unit = c(800000000,
+                        1600000000,
+                         4100000000,
+                        10000000000)) %>% 
+    mutate(clusters_per_sample = cluster_per_unit/25,
+           probe_cov = (clusters_per_sample * (1-duplicates) * on_target)/panel_size,
+           dup_cov = floor(probe_cov/100)) 
+```
+
+AF detection thresholds for full S2 and S4 runs based on cluster numbers. 
+
+```{r}
+detect_prob_tbl %>% 
+    filter(prob_detect > 0.95) %>% 
+    group_by(af) %>% 
+    top_n(n = 1, wt = -dup_cov) %>% 
+    filter(dup_cov %in% c(199, 427))
+```
+
+# Experimental Design
+Twin - reagents for 24 samples
+
+Samples:
+- Unmixed: HG002, HG003, HG004
+- Mixed HG002/HG003: AF 0.25, 0.1, 0.05, 0.01
+
+Triplicates for each
+
+Estimated Dup Coverage:
+S2 - 199 per replicate, ~600X total
+S4 - 427 per replicate, ~1275X total
+
+# Summary
+AF detection limits based on the above estimates indicate that we can detect mosaic variants with AF ~0.015 with S2 flowcell and 0.007 using a S4 flowcell. 
+The coverage calculations are pretty far off between the cluster based and base coveraer estimates.
+
+__Caveats__
++ Sample size calculation does not include a power analysis  
++ Coverage estimate assumptions need verification, particularly the number of raw reads required per duplex consensus seq. 
