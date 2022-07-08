@@ -1,0 +1,112 @@
+---
+title: "Duplex Seq Targeted Panel Design"
+author: "Nate D. Olson"
+date: '`r Sys.Date()`'
+output: 
+    bookdown::html_document2:
+        toc: true
+        toc_float: true
+        df_print: paged
+        code_folding: hide
+---
+
+# Objective
+Identify variants for targeted duplex sequencing panel for validating candidate mosaic variants.
+
+# Background
+Duplex sequencing uses dual molecular identifiers for strand specific sequencing of individual molecules, providing a theoretical error rate of $10^-9$ (Salk et al. 2018, https://doi.org/10.1038/nrg.2017.117).
+
+This is arguably overkill for detecting our targeted 5% mutation threshold but will provide strong evidence for any validated variants.
+
+Working with Twist to generate probes for the targeted panel (https://www.twistbioscience.com/) and Twinstrand duplex sequencing (https://twinstrandbio.com). Sequencing will be performed by CHOP sequencing center.
+
+The targeted panel can include up to 5,000 probes, with 1 probe per variant.
+
+# Panel Experimental Design 
+3,000 probes
+
+* 1,600 putative mosaic variants  
+* 800 potential mosaic variants,
+* 300 TP 
+* 300 FP (homozygous reference HG002, heterozygous variant in parents).
+
+__Mosaic Variants__
+Variants identified with the Strelka2 somatic variant caller with HG002 seq data provided as tumor and the combined parents provided as normal. High coverage (~ 300X) Illumina data was used in the analysis.
+The resulting variant call set was filtered to exclude variants outside the union of the AJtrio benchmark regions and complex variants. [TODO - Add definition for complex variants]
+
+* Putative mosaic variants - passing variants
+* Potential mosaic variants - non-passing variant, 
+
+__Controls__  
+
+* True positives (TP) - heterozygous variant in HG002 that are homozygous ref in HG003 – these would be used to validate assay in conjunction with DNA mixtures.  
+* False positives (FP) - homozygous reference HG002 and heterozygous variant in parents  
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(here)
+```
+
+# Identification of Candidate Mosaic Variants
+Using rtg-tools vcfeval
+
+Downloading HG002 GIAB V4.1 benchmark variant and bed files
+```
+wget ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.1/GRCh37/HG002_GRCh37_1_22_v4.1_draft_benchmark.bed.gz
+wget ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.1/GRCh37/HG002_GRCh37_1_22_v4.1_draft_benchmark.bed.gz.tbi 
+wget ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.1/GRCh37/HG002_GRCh37_1_22_v4.1_draft_benchmark.vcf.gz
+wget ftp://ftp-trace.ncbi.nlm.nih.gov/ReferenceSamples/giab/release/AshkenazimTrio/HG002_NA24385_son/NISTv4.1/GRCh37/HG002_GRCh37_1_22_v4.1_draft_benchmark.vcf.gz.tbi
+```
+
+Download hg37d5 sdf pre-formatted file
+```
+wget https://s3.amazonaws.com/rtg-datasets/references/1000g_v37_phase2.sdf.zip
+```
+
+vcfeval ran on Nate's 13 inch macbook pro laptop
+vcfeval started at 9:45 AM 10/6
+```
+BENCHPATH=resources/hg002_benchmark
+rtg vcfeval \
+    -b ${BENCHPATH}/HG002_GRCh37_1_22_v4.1_draft_benchmark.vcf.gz \
+    -c data/strelka2_wgs_parents-vs-child/HG002_hs37d5_300X_wg.vcf.gz \
+    --bed-regions ${BENCHPATH}/HG002_GRCh37_1_22_v4.1_draft_benchmark.bed.gz \
+    -o data/strelka2_wgs_parents-vs-child/vcfeval_comparison \
+    -t resources/1000g_v37_phase2.sdf  \
+    --all-records \
+    --ref-overlap 
+```
+
+Next Step - intersect with AJ trio benchmark region and exclude SVs and complex variants
+
+# Mosaic Variant List
+```{r}
+fp_vcf <- read_tsv(here("data","strelka2_wgs_parents-vs-child",
+                        "vcfeval_comparison","fp.vcf.gz"),comment = "##") %>% 
+    rename(CHROM = `#CHROM`)
+fp_vcf %>% 
+    count(FILTER)
+```
+```{r}
+
+```
+
+
+# Control Variant List
+
+# Session Information
+## System Information
+```{r}
+sessioninfo::platform_info()
+```
+
+
+## Package Versions
+```{r}
+sessioninfo::package_info() %>% 
+    filter(attached = TRUE) %>% 
+    select(package, loadedversion, date, source) %>%
+    knitr::kable(booktabs = TRUE, row.names = FALSE)
+```

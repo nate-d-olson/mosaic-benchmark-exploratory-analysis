@@ -17,8 +17,28 @@ Happy was run on precisionFDA.
 
 
 ## Duplex Sequencing 
+### Panel Design
+
+- See `analysis/targeted_panel_design.Rmd` for file descriptions and code used to the following files. 
+    - `putative_mosaic_snvs.txt`: non-passing potential mosaic variants detected using strelka included in the panel design request (potentially not included in the final panel due to probe design limitations)
+    - `putative_mosaic_indels.txt`:same as the snvs file but for indels.
+    - `putative_mosaic_indels_twist_formated.txt`: reformatted version of above for submission to twist
+    - `control_variants.txt`: list of control variants included in assay for validation. Control variants are heterozygous for HG003 and homozygous reference for HG002. (TODO - check genotype for HG004) Control variants were the nearest variant within 1.5kb but more that 50bp from a putative/ candidate variant. 
+- `twinstrand_panel.bed` - panel design bed file for individual variants see `docs/panel_design` for design documentation provided by TwinStrand.  
+
+- Files provided by Twinstrand in email to Nate Olson from Ellie
+```
+MD5 (CAP-1_NIST_CellLine_Mutagenesis_targets_hg38.bed) = b587a2ed3a3325e88fcc7cfdb513d8b5
+MD5 (FOR_TWIST_probe_placement_CAP-1_NIST_CellLine_Mutagenesis_hg38.fa) = e6924d47a8a14e9e4e1860bf29996cda
+MD5 (Merged_Probe_Placement_CAP-1_NIST_CellLine_Mutagenesis_hg38.bed) = a81f79ac3a6cc203e8d15ecf71a413c0
+MD5 (Overview_CAP-1_NIST_CellLine_Mutagenesis.pdf) = 6fa8dca2a2e2c68e8e643e54452c1741
+MD5 (Targets_with_NO_coverage_CAP-1_NIST_CellLine_Mutagenesis_hg38.bed) = a115623710a19dd285245f3bad867778
+MD5 (Targets_with_partial_coverage_CAP-1_NIST_CellLine_Mutagenesis_hg38.bed) = 4b9c6f221464b57b3a36cb9b80999e1b
+```
+
 Intermediate files in `panel_design` subdirectory.
 
+### Experimental Metadata Sheets
 - `mosaic-dupseq_sample_sheet.tsv`: Metadata sheet for sequenced samples
     - columns: 
         - `sample_id`: project sample id,
@@ -45,6 +65,3 @@ Intermediate files in `panel_design` subdirectory.
     	- `grch38_lftovr_err`: variants where lift reciprocal liftover did not match GRCh38 coords.
     	- `grch37_lftovr_err`: variants where lift reciprocal liftover did not match GRCh37 coords.
 
-## Panel Design
-- See `analysis/targeted_panel_design.Rmd` for file descriptions and code used to generate the files.  
-- twinstrand_panel.bed - panel design bed file for individual variants see `docs/panel_design` for design documentation provided by TwinStrand.  

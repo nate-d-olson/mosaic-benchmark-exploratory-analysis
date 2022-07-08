@@ -251,12 +251,15 @@ DT::datatable(comp_tbl)
 
 
 ### Annotating Liftover errors
+Issue likely an error with InDel numbering
 ```{r}
 dup_panel_metadata_wlftovrerr <- dup_panel_metadata %>% 
     mutate(grch38_lftovr_err = if_else(var_id %in% grch38_lftover_error,TRUE,FALSE),
            grch37_lftovr_err = if_else(var_id %in% grch37_lftover_error,TRUE,FALSE)
            )
-dup_panel_metadata_wlftovrerr
+dup_panel_metadata_wlftovrerr %>% 
+    select(-RSID, -rsid, -var_type, -var_cat, -filter, -var_dist, -AF) %>% 
+    filter(grch38_lftovr_err, grch37_lftovr_err)
 ```
 
 

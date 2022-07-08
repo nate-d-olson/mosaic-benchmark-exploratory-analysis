@@ -542,19 +542,19 @@ indels_twist_formatted %>%
 Generating InDel liftOver table
 ```{r}
 liftOver_failure_indels <- read_tsv(
-    "~/Downloads/LiftOver_Failure_CAP-1_NIST_CellLine_Mutagenesis_reformatted.bed",
+    here("data/panel_design/LiftOver_Failure_CAP-1_NIST_CellLine_Mutagenesis_reformatted.bed"),
     col_names = c("CHROM","POS","STOP")) 
 
 liftOver_coords <- read_tsv(
-    "~/Downloads/mosaic-dels_reformatted_liftOver.bed",
+    here("data/panel_design/mosaic-dels_reformatted_liftOver.bed"),
     col_names = c("grch38_CHROM","grch38_START","grch38_STOP"))
 
-liftOver_failure_indels %>% 
-    bind_cols(liftOver_coords) %>% 
-    mutate(CHROM = as.double(str_remove(CHROM, "chr"))) %>% 
-    left_join(indels_twist_formatted) %>% 
-    select(CHROM, POS, STOP, grch38_CHROM, grch38_START, grch38_STOP, del_seq, del_len) %>% 
-    write_tsv(here("data","panel_design","liftover_dels_tbl.tsv"))
+# liftOver_failure_indels %>% 
+#     bind_cols(liftOver_coords) %>% 
+#     mutate(CHROM = as.double(str_remove(CHROM, "chr"))) %>% 
+#     left_join(indels_twist_formatted) %>% 
+#     select(CHROM, POS, STOP, grch38_CHROM, grch38_START, grch38_STOP, del_seq, del_len) %>% 
+#     write_tsv(here("data","panel_design","liftover_dels_tbl.tsv"))
 ```
 
 
@@ -638,76 +638,76 @@ subtracting HG002 vars
 
 ### Candidate Control Variant List
 ```{r}
-merged_bench_vcf_df <- read_tsv(here("data", 
-                                     "panel_design", 
-                                     "merged-variants_no-putatitive-no-hg002.vcf"),
-                   comment = "##") %>% 
-    rename(CHROM = `#CHROM`) %>% 
-    filter(str_detect(HG002, "^\\./\\."), str_detect(HG003, "^0/1"))
+# merged_bench_vcf_df <- read_tsv(here("data", 
+#                                      "panel_design", 
+#                                      "merged-variants_no-putatitive-no-hg002.vcf"),
+#                    comment = "##") %>% 
+#     rename(CHROM = `#CHROM`) %>% 
+#     filter(str_detect(HG002, "^\\./\\."), str_detect(HG003, "^0/1"))
 ```
 
 ```{r}
-putative_control <- merged_bench_vcf_df %>% 
-    select(CHROM, POS, ID) %>% 
-    mutate(var_type = "putative_control")
+# putative_control <- merged_bench_vcf_df %>% 
+#     select(CHROM, POS, ID) %>% 
+#     mutate(var_type = "putative_control")
 ```
 
 ```{r}
-candidate_mosaic <- putative_var_df %>% 
-    ungroup() %>% 
-    filter(TQSS_NT == 1, FILTER == "PASS") %>% 
-    select(CHROM, POS) %>% 
-    mutate(var_type = "candidate_mosaic")
+# candidate_mosaic <- putative_var_df %>% 
+#     ungroup() %>% 
+#     filter(TQSS_NT == 1, FILTER == "PASS") %>% 
+#     select(CHROM, POS) %>% 
+#     mutate(var_type = "candidate_mosaic")
 ```
 
 ```{r}
-var_dist_df <- candidate_mosaic %>% 
-    bind_rows(putative_control) %>% 
-    arrange(CHROM, POS) %>% 
-    group_by(CHROM) %>% 
-    mutate(lag_var_type = lag(var_type),
-           lag_pos = lag(POS),
-           lag_dist = abs(POS - lag_pos),
-           lead_var_type = lead(var_type),
-           lead_pos = lead(POS),
-           lead_dist = abs(POS - lead_pos))
+# var_dist_df <- candidate_mosaic %>% 
+#     bind_rows(putative_control) %>% 
+#     arrange(CHROM, POS) %>% 
+#     group_by(CHROM) %>% 
+#     mutate(lag_var_type = lag(var_type),
+#            lag_pos = lag(POS),
+#            lag_dist = abs(POS - lag_pos),
+#            lead_var_type = lead(var_type),
+#            lead_pos = lead(POS),
+#            lead_dist = abs(POS - lead_pos))
 ```
 
 ```{r}
-control_var_df <- var_dist_df %>% 
-    filter(var_type == "putative_control",
-        var_type != lag_var_type | var_type != lead_var_type) %>% 
-    ungroup() %>% 
-    rowwise() %>% 
-    mutate(var_dist = case_when(lag_var_type == lead_var_type ~ min(lag_dist, lead_dist),
-                                lag_var_type == "candidate_mosaic" ~ lag_dist,
-                                lead_var_type == "candidate_mosaic" ~ lead_dist,
-                                TRUE ~ -1
-                                )) %>% 
-    arrange(var_dist)
+# control_var_df <- var_dist_df %>% 
+#     filter(var_type == "putative_control",
+#         var_type != lag_var_type | var_type != lead_var_type) %>% 
+#     ungroup() %>% 
+#     rowwise() %>% 
+#     mutate(var_dist = case_when(lag_var_type == lead_var_type ~ min(lag_dist, lead_dist),
+#                                 lag_var_type == "candidate_mosaic" ~ lag_dist,
+#                                 lead_var_type == "candidate_mosaic" ~ lead_dist,
+#                                 TRUE ~ -1
+#                                 )) %>% 
+#     arrange(var_dist)
 ```
 
 Control variant distance from putative mosaic variant ranged from 50 bp to 1.5 kb. May want to revise distance so that the control probes do not overlap with the candidate mosaic variant probes. 
 ```{r}
-control_var_df %>% 
-    ungroup() %>% 
-    # top_n(250, wt = -var_dist) %>% 
-    ggplot() + geom_histogram(aes(x = var_dist)) + 
-    scale_x_log10() + 
-    theme_bw()
+# control_var_df %>% 
+#     ungroup() %>% 
+#     # top_n(250, wt = -var_dist) %>% 
+#     ggplot() + geom_histogram(aes(x = var_dist)) + 
+#     scale_x_log10() + 
+#     theme_bw()
 ```
 ```{r}
-control_var_df %>% 
-    ungroup() %>% 
-    top_n(250, wt = -var_dist) %>% 
-    ggplot() + geom_histogram(aes(x = var_dist)) + 
-    scale_x_log10() + 
-    theme_bw()
+# control_var_df %>% 
+#     ungroup() %>% 
+#     top_n(250, wt = -var_dist) %>% 
+#     ggplot() + geom_histogram(aes(x = var_dist)) + 
+#     scale_x_log10() + 
+#     theme_bw()
 ```
 ```{r}
-dist_control_vars <- control_var_df %>% 
-    ungroup() %>% 
-    top_n(250, wt = -var_dist)
+# dist_control_vars <- control_var_df %>% 
+#     ungroup() %>% 
+#     top_n(250, wt = -var_dist)
 
 # random_control_vars <- putative_control %>% 
 #     ## Excluding variant distance based control vars
@@ -723,6 +723,11 @@ Forgot to set seed will use the file on disk
  #    select(CHROM, POS, ID, var_dist) %>%
  #    arrange(CHROM, POS) %>%
  #    write_tsv(here("data","panel_design", "control_variants.txt"))
+```
+
+
+```{r}
+control_vars <- read_tsv(here("data","panel_design", "control_variants.txt"))
 ```
 
 ## TwinStrand Panel
@@ -747,20 +752,6 @@ panel_regions %>%
     mutate(region_size = END - START) %>% 
     count(region_size)
 ```
-
-
-## TODO - add code to generate panel metadata table
-- GRCh37 chrom and pos
-- GRCh38 chrom and pos
-- rsid
-- var_dist
-- var_type
-- var_cat
-- FILTER
-- SomaticEVS
-- AF (Ill)
-- Read support CCS
-- Read support BGiSeq
 
 
 # Session Information
